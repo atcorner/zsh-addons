@@ -1,0 +1,172 @@
+# vim: set ft=zsh:
+# Prompt inspired by adam2
+
+# Copyright (c) 2013, Ante Vojvodic (ante@atcorner.hr)
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+# last edit: 2014102
+
+function prompt_atc_setup()
+{
+    autoload -U colors && colors
+    local _tilda
+
+    reset="%{${reset_color}%}"
+    white="%{$fg[white]%}"
+    gray="%{$fg_bold[black]%}"
+    green="%{$fg_bold[green]%}"
+    red="%{$fg_bold[red]%}"
+    yellow="%{$fg[yellow]%}"
+    cyan="%{$fg[cyan]%}"
+
+    _pline_color=${cyan}
+
+    _tilda='\`'
+    l_paren="${gray}(${reset}"
+    r_paren="${gray})${reset}"
+
+    _ptl_start="${_pline_color}.-"
+    _pbl="${_pline_color}${_tilda}- %B%F{white}"
+
+    prompt_char="%(!.#.>)"
+
+    prompt_opts=(cr subst percent)
+
+    add-zsh-hook precmd prompt_atc_precmd
+}
+
+function prompt_atc_precmd()
+{
+    setopt noxtrace localoptions extendedglob
+    local _ptl
+
+    prompt_atc_set
+
+    PS1="${_ptl}$prompt_newline${_pbl}%B%F{white}$prompt_char %b%f%k"
+    PS2="${_pbl}$_gfx_bbox_to_mbox%B%F{white}%_> %b%f%k"
+    PS3="${_pbl}$_gfx_bbox_to_mbox%B%F{white}?# %b%f%k"
+    zle_highlight[(r)default:*]="default:fg=${white},bold"
+}
+
+function prompt_atc_set()
+{
+    local _ptl_start_width _pwd_width _user_host_width
+    local _vcs_info_width _filler_width
+    local _pwd _user_host _vcs_info _filler
+
+    _pwd="$(_get_pwd)"
+    _user_host="$(_get_user_host)"
+    _vcs_info="$(_get_vcs_info)"
+
+    _ptl_start_width=${#${(S%%)_ptl_start//(\%([KF1]|)\{*\}|\%[Bbkf])}}
+    _pwd_width=${#${(S%%)_pwd//(\%([KF1]|)\{*\}|\%[Bbkf])}}
+    _user_host_width=${#${(S%%)_user_host//(\%([KF1]|)\{*\}|\%[Bbkf])}}
+    _vcs_info_width=${#${(S%%)_vcs_info//(\%([KF1]|)\{*\}|\%[Bbkf])}}
+
+    _filler_width=$(( COLUMNS
+                            - _ptl_start_width
+                            - _pwd_width
+                            - _vcs_info_width
+                            - _user_host_width))
+
+    # Try to fit in long path and user@host.
+    if (( _filler_width > 0 ))
+    then
+        eval "_filler=\${(l:${_filler_width}::-:)_empty_zz}"
+        _ptl="${_ptl_start}${_pwd}${_pline_color}${_filler}${_vcs_info}${_user_host}"
+        return
+    fi
+
+    _filler_width=$(( COLUMNS - _pwd_width - 2 ))
+
+    # Didn't fit; try to fit in just long path.
+    if (( _filler_width > 0 ))
+    then
+        eval "_filler=\${(l:${_filler_width}::-:)_empty_zz}"
+        _ptl="${_ptl_start}${_pwd}${_pline_color}${_filler}"
+        return
+    fi
+
+    # Still didn't fit. Truncate path.
+    _pwd="$(_get_pwd short)"
+    _pwd_width=${#${(S%%)_pwd//(\%([KF1]|)\{*\}|\%[Bbkf])}}
+    _filler_width=$(( COLUMNS - _pwd_width - 2 ))
+    eval "_filler=\${(l:${_filler_width}::-:)_empty_zz}"
+    _ptl="${_ptl_start}${_pwd}${_pline_color}${_filler}"
+}
+
+function _get_pwd()
+{
+    local _opt
+    local _pwd_color
+    local _pwd
+
+    _opt=${1}
+
+    if [ -w $PWD ]
+    then
+        _pwd_color=${green}
+    else
+        _pwd_color=${red}
+    fi
+
+    if [ "x${_opt}" = "xshort" ]
+    then
+        _pwd=${PWD%/*/*}
+        echo "${l_paren}${_pwd_color}.../${PWD:${#_pwd}+1}${r_paren}"
+    else
+        echo "${l_paren}${_pwd_color}%~${r_paren}"
+    fi
+}
+
+function _get_user_host()
+{
+    local _user_host_color
+
+    if [ $UID = 0 ]
+    then
+        _user_host_color=${red}
+    else
+        _user_host_color=${cyan}
+    fi
+    echo "${l_paren}${_user_host_color}%n@%M${r_paren}"
+}
+
+function _get_vcs_info()
+{
+    local __exists
+
+    __exists=$(declare -f -F vcs_info)
+    if [ -n "$__exists" ]
+    then
+        vcs_info
+        if [ -n "${vcs_info_msg_0_}" ]
+        then
+            echo "${l_paren}${vcs_info_msg_0_}${r_paren}"
+        fi
+    fi
+}
+
+prompt_atc_setup
