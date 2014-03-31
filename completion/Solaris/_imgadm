@@ -1,0 +1,276 @@
+#compdef imgadm
+
+# Copyright (c) 2013, Ante Vojvodic (ante@atcorner.hr)
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+# last edit: 20141027
+
+emulate -LR zsh
+setopt EXTENDED_GLOB
+
+_imgadm_list_zfs_pools()
+{
+    local pools
+    pools=($(zpool list -H -o name))
+    compadd ${pools}
+}
+
+_imgadm_imgs_installed()
+{
+    local imgs
+    imgs=($(imgadm list -H -o uuid,name,version -s name,version | \
+            awk '{ printf("%s:%s-v%s\n", $1, $2, $3) }'))
+
+    _describe 'IMG uuid' imgs
+}
+
+_imgadm_imgs_unused()
+{
+    local imgs
+    imgs=($(imgadm list -H -o uuid,name,version,clones -s name,version| \
+        awk '$4 == "0" { printf("%s:%s-v%s\n", $1, $2, $3) }'))
+
+    _describe 'IMG uuid' imgs
+}
+
+_imgadm_imgs_available()
+{
+    local imgs
+    imgs=($(imgadm avail -H -o uuid,name,version -s name,version | \
+        awk '{ printf("%s:%s-v%s\n", $1, $2, $3) }'))
+
+    _describe 'IMG uuid' imgs
+}
+
+_imgadm_sources()
+{
+    local sources
+    sources=($(imgadm sources))
+    compadd ${sources}
+}
+
+_imgadm()
+{
+    local context state line expl
+    typeset -A opt_args
+    local -a subcmds
+    local -a img_avail_fields img_list_fields img_compress
+
+    subcmds=(
+        "avail"
+        "create"
+        "delete"
+        "get"
+        "help"
+        "import"
+        "info"
+        "install"
+        "list"
+        "publish"
+        "show"
+        "sources"
+        "update"
+    )
+
+    img_avail_fields=(
+        "cpu_type"
+        "description."
+        "disk_driver"
+        "generate_passwords"
+        "image_size"
+        "name"
+        "os"
+        "owner"
+        "public"
+        "published"
+        "published_at"
+        "published_date"
+        "state"
+        "type"
+        "urn"
+        "uuid"
+        "version"
+        "disabled"
+        "nic_driver"
+        "source"
+    )
+
+    img_list_fields=(
+        "clones"
+        "cpu_type"
+        "description"
+        "generate_passwords"
+        "image_size"
+        "name"
+        "nic_driver"
+        "os"
+        "owner"
+        "public"
+        "published"
+        "published_at"
+        "state"
+        "type"
+        "urn"
+        "uuid"
+        "version"
+        "disabled"
+        "disk_driver"
+        "source"
+        "zpool"
+    )
+
+    img_compress=(
+        "none"
+        "gz"
+        "bzip2"
+    )
+
+    if [[ $service == "imgadm" ]]
+    then
+        _arguments -C -A "-*" '*::command:->subcmd' && return 0
+
+        if (( CURRENT == 1 ))
+        then
+            _wanted commands expl "imgadm subcommand" compadd -a subcmds
+            return
+        fi
+        service="$words[1]"
+        curcontext="${curcontext%:*}=$service:"
+    fi
+
+    case $service in
+        ("avail")
+            _arguments \
+                '-h[Print help]' \
+                '-j[JSON output]' \
+                '-H[Disable printing header]' \
+                '-o[Properties to list]:property:_values -s , "property" $img_avail_fields' \
+                '-s[Sort by]:property:_values -s , "property" $img_avail_fields' \
+            ;;
+
+        ("create")
+            # TODO: (-e, -s, vm-uuid)
+            _arguments \
+                '-h[Print help]' \
+                '-m[Image manifest]:file:_files -g "*.dsmanifest"' \
+                '-o[Path prefix]:path:_path_files -/' \
+                '-i[Build an incremental image]' \
+                '-p[Publish directly to IMGAPI server]:source:_imgadm_sources' \
+                '-q[Disable progress bar]'
+            ;;
+
+        ("delete")
+            _arguments \
+                '-h[Print help]' \
+                '-P[ZFS pool]:pool:_imgadm_list_zfs_pools' \
+                ':IMG uuid:_imgadm_imgs_unused'
+            ;;
+
+        ("get")
+            _arguments \
+                '-h[Print help]' \
+                '-r[Recursively gather children]' \
+                '-P[ZFS pool]:pool:_imgadm_list_zfs_pools' \
+                ':IMG uuid:_imgadm_imgs_installed'
+            ;;
+
+        ("help")
+            _arguments \
+                ':command:_values "command" $subcmds'
+            ;;
+
+        ("import")
+            _arguments \
+                '-h[Print help]' \
+                '-P[ZFS pool]:pool:_imgadm_list_zfs_pools' \
+                '-q[Disable progress bar]' \
+                ':IMG uuid:_imgadm_imgs_available'
+            ;;
+
+        ("info")
+            _arguments \
+                '-h[Print help]' \
+                '-r[Recursively gather children]' \
+                '-P[ZFS pool]:pool:_imgadm_list_zfs_pools' \
+                ':IMG uuid:_imgadm_imgs_installed'
+            ;;
+
+        ("install")
+            _arguments \
+                '-h[Print help]' \
+                '-m[Image manifest]:file:_files -g "*.dsmanifest"' \
+                '-f[Image file]:file:_files -g "*.{gz,bz2}"' \
+                '-P[ZFS pool]:pool:_imgadm_list_zfs_pools' \
+                '-q[Disable progress bar]'
+            ;;
+
+        ("list")
+            _arguments \
+                '-h[Print help]' \
+                '-j[JSON output]' \
+                '-H[Disable printing header]' \
+                '-o[Properties to list]:property:_values -s , "property" $img_list_fields' \
+                '-s[Sort by]:property:_values -s , "property" $img_list_fields' \
+            ;;
+
+        ("publish")
+            _arguments \
+                '-h[Print help]' \
+                '-m[Image manifest]:file:_files -g "*.dsmanifest"' \
+                '-f[Image file]:file:_files -g "*.{gz,bz2}"' \
+                '-q[Disable progress bar]' \
+                ':imgapi-url:'
+            ;;
+
+        ("show")
+            _arguments \
+                '-h[Print help]' \
+                ':IMG uuid:_imgadm_imgs_available'
+            ;;
+
+        ("sources")
+            _arguments \
+                '-h[Print help]' \
+                '-j[JSON output]' \
+                '-a[Add a source]:source:' \
+                '-d[Delete a source]:source:_imgadm_sources' \
+                '-e[Edit sources in an editor]' \
+                '-f[Force no "ping check" on new source URLs]'
+            ;;
+
+        ("update")
+            _arguments \
+                '-h[Print help]' \
+                '-n[Do a dry-run]' \
+                ':IMG uuid:_imgadm_imgs_installed'
+            ;;
+
+        (*)
+            _message "unknown imgadm subcommand: $service"
+            ;;
+    esac
+}
+
+_imgadm "$@"
