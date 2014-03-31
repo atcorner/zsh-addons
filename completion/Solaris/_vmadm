@@ -1,0 +1,388 @@
+#compdef vmadm
+
+# Copyright (c) 2013, Ante Vojvodic (ante@atcorner.hr)
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+# last edit: 20141027
+
+emulate -LR zsh
+setopt EXTENDED_GLOB
+
+_vmadm_vms_all()
+{
+    local vms
+    vms=($(vmadm list -p -o uuid,alias))
+    _describe 'VM uuid' vms
+}
+
+_vmadm_vms_running()
+{
+    local vms
+    vms=($(vmadm list -p -o uuid,alias state="running"))
+    _describe 'VM uuid' vms
+}
+
+_vmadm_vms_stopped()
+{
+    local vms
+    vms=($(vmadm list -p -o uuid,alias state="stopped"))
+    _describe 'VM uuid' vms
+}
+
+_vmadm_vms_os()
+{
+    local vms
+    vms=($(vmadm list -p -o uuid,alias type="OS"))
+    _describe 'VM uuid' vms
+}
+
+_vmadm_vms_kvm_running()
+{
+    local vms
+    vms=($(vmadm list -p -o uuid,alias state="running" type="KVM"))
+    _describe 'VM uuid' vms
+}
+
+_vmadm_vm_snapshots()
+{
+    local vm
+    local -a snapshots
+
+    vm=$words[2]
+    snapshots=($(vmadm get ${vm} | json "snapshots" | json -a "name"))
+
+    compadd ${snapshots}
+}
+
+_vmadm()
+{
+    local context state line expl
+    typeset -A opt_args
+    local -a subcmds
+    local -a vm_properties vm_properties_names vm_update_properties
+    local -a vm_filters vm_rqs vm_types vm_validate_actions vm_brands
+    local -a vm_start_options
+
+    subcmds=(
+        "console"
+        "create"
+        "create-snapshot"
+        "delete"
+        "delete-snapshot"
+        "get"
+        "info"
+        #"install"
+        "list"
+        "lookup"
+        "reboot"
+        #"receive"
+        #"reprovision"
+        "rollback-snapshot"
+        #"send"
+        "start"
+        "stop"
+        "sysrq"
+        "update"
+        "validate"
+    )
+
+    vm_properties=(
+        "alias:value:"
+        "autoboot:value:(true false)"
+        "billing_id:value:"
+        "brand:value:(joyent joyent-minimal kvm sngl)"
+        "cpu_cap:value:"
+        "cpu_shares:value:"
+        "cpu_type:value:(qemu64 host)"
+        "create_timestamp:value:"
+        "image_uuid:value:"
+        "dns_domain:value:"
+        "hostname:value:"
+        "max_locked_memory:value:"
+        "max_lwps:value:"
+        "max_physical_memory:value:"
+        "max_swap:value:"
+        "owner_uuid:value:"
+        "package_name:value:"
+        "package_version:value:"
+        "pid:value:"
+        "quota:value:"
+        "ram:value:"
+        "state:value:(failed
+                      provisioning
+                      receiving
+                      running
+                      stopping
+                      stopped)"
+        "tmpfs:value:"
+        "type:value:(OS KVM)"
+        "uuid:value:"
+        "vcpus:value:"
+        "zfs_io_priority:value:"
+        "zone_state:value:(configured
+                           incomplete
+                           installed
+                           ready
+                           mounted
+                           running
+                           shutting_down
+                           down)"
+        "zonename:value:"
+        "zoneid:value:"
+        "zpool:value:"
+    )
+
+    vm_properties_names=( ${vm_properties%%:*} )
+
+    vm_update_properties=(
+        "alias:value:"
+        "archive_on_delete:value(true false)"
+        "autoboot:value:(true false)"
+        "billing_id:value:"
+        "boot:value:"
+        "cpu_cap:value:"
+        "cpu_shares:value:"
+        "cpu_type:value(qemu64 host)"
+        "disk_driver:value:(virtio ide scsi)"
+        "do_not_inventory:value:(true false)"
+        "firewall_enabled:value:(true false)"
+        "fs_allowed:value:"
+        "hostname:value:"
+        "limit_priv:value:"
+        "maintain_resolvers:value:(true false)"
+        "max_locked_memory:value:"
+        "max_lwps:value:"
+        "max_physical_memory:value:"
+        "max_swap:value:"
+        "nic_driver:value:(virtio e1000 rtl8139)"
+        "owner_uuid:value:"
+        "package_name:value:"
+        "package_version:value:"
+        "qemu_opts:value:"
+        "qemu_extra_opts:value:"
+        "quota:value:"
+        "ram:value:"
+        "resolvers:value:"
+        "spice_opts:value:"
+        "spice_password:value:"
+        "spice_port:value:"
+        "tmpfs:value:"
+        "vcpus:value:"
+        "vga:value:(cirrus std vmware)"
+        "virtio_txburst:value:"
+        "virtio_txtimer:value:"
+        "vnc_password:value:"
+        "vnc_port:value:"
+        "zfs_data_compression:value:(on off lzjb gzip gzip-{1..9} zle)"
+        "zfs_data_recsize:value:"
+        "zfs_io_priority:value:"
+        "zfs_root_compression:value:(on off lzjb gzip gzip-{1..9} zle)"
+        "zfs_root_recsize:value:"
+    )
+
+    vm_filters=(
+        "disks.*.boot:value:(true false)"
+        "disks.*.image_name:value:"
+        "disks.*.image_size:value:"
+        "disks.*.image_uuid:value:"
+        "disks.*.size:value:"
+        "disks.*.media:value:(disk cdrom)"
+        "disks.*.model:value:(virtio ide scsi)"
+        "disks.*.zpool:value:"
+        "nics.*.allow_dhcp_spoofing:value:(true false)"
+        "nics.*.allow_ip_spoofing:value:(true false)"
+        "nics.*.allow_mac_spoofing:value:(true false)"
+        "nics.*.allow_restricted_traffic:value:(true false)"
+        "nics.*.allow_unfiltered_promisc:value:(true false)"
+        "nics.*.blocked_outgoing_ports:value:"
+        "nics.*.dhcp_server:value:(true false)"
+        "nics.*.gateway:value:"
+        "nics.*.interface:value:"
+        "nics.*.ip:value:"
+        "nics.*.mac:value:"
+        "nics.*.model:value:(virtio e1000 rtl8139)"
+        "nics.*.netmask:value:"
+        "nics.*.nic_tag:value:"
+        "nics.*.primary:value:(true false)"
+        "nics.*.vlan_id:value:"
+        "nics.*.vrrp_primary_ip:value:"
+        "nics.*.vrrp_vrid:value:"
+        "nics.\*.ip:value:"
+    )
+
+    vm_rqs=(
+        "nmi"
+        "screenshot"
+    )
+
+    vm_types=(
+        "all"
+        "block"
+        "blockstats"
+        "chardev"
+        "cpus"
+        "kvm"
+        "pci"
+        "spice"
+        "version"
+        "vnc"
+    )
+
+    vm_validate_actions=(
+        "create"
+        "update"
+    )
+
+    vm_brands=(
+        "joyent"
+        "joyent-minimal"
+        "sngl"
+        "kvm"
+    )
+
+    vm_start_options=(
+        "order:value:"
+        "cdrom:value:"
+        "disk:value:"
+    )
+
+    if [[ $service == "vmadm" ]]
+    then
+        _arguments -C -A "-*" '*::command:->subcmd' && return 0
+
+        if (( CURRENT == 1 ))
+        then
+            _wanted commands expl "vmadm subcommand" compadd -a subcmds
+            return
+        fi
+        service="$words[1]"
+        curcontext="${curcontext%:*}=$service:"
+    fi
+
+    case $service in
+        ("console")
+            _arguments \
+                ':VM uuid:_vmadm_vms_running'
+            ;;
+
+        ("create")
+            _arguments \
+                '-f[filename]:file:_files -g "*.json"'
+            ;;
+
+        ("create-snapshot")
+            _arguments \
+                ':VM uuid:_vmadm_vms_os' \
+                ':snapname:'
+            ;;
+
+        ("delete")
+            _arguments \
+                ':VM uuid:_vmadm_vms_stopped'
+            ;;
+
+        ("delete-snapshot"|"rollback-snapshot")
+            _arguments \
+                ':VM uuid:_vmadm_vms_os' \
+                ':snapname:_vmadm_vm_snapshots'
+            ;;
+
+        ("get")
+            _arguments \
+                ':VM uuid:_vmadm_vms_all'
+            ;;
+
+        ("info")
+            _arguments \
+                ':VM uuid:_vmadm_vms_kvm_running' \
+                ':types:_values -s , "types" $vm_types'
+            ;;
+
+        ("list")
+            _arguments \
+                '-p[Parsable output]' \
+                '-H[Disable printing header]' \
+                '-o[Properties to list]:property:_values -s , "property" $vm_properties_names' \
+                '-s[Sort by]:property:_values -s , "property" $vm_properties_names' \
+                '*:filter:_values "filter" $vm_properties $vm_filters'
+            ;;
+
+        ("lookup")
+            _arguments \
+                '-j[JSON output]' \
+                '-1[Request unique lookup]' \
+                '-o[Properties to list]:property:_values -s , "property" $vm_properties_names' \
+                '*:filter:_values "filter" $vm_properties $vm_filters'
+            ;;
+
+        ("reboot"|"stop")
+            _arguments \
+                ':VM uuid:_vmadm_vms_running' \
+                '-F[Force stop/reboot]'
+            ;;
+
+        ("start")
+            _arguments \
+                ':VM uuid:_vmadm_vms_stopped' \
+                '*:options:_values "options" $vm_start_options'
+            ;;
+
+        ("sysrq")
+            _arguments \
+                ':VM uuid:_vmadm_vms_kvm_running' \
+                ':rq:_values "rq" $vm_rqs'
+            ;;
+        ("update")
+            _arguments \
+                ':VM uuid:_vmadm_vms_all' \
+                '-f[filename]:file:_files -g "*.json"' \
+                '*:property:_values "property" $vm_update_properties'
+            ;;
+        ("validate")
+            if (( CURRENT == 2 ))
+            then
+                _wanted commands expl "action" compadd $vm_validate_actions
+            else
+                case $words[2] in
+                    ("create")
+                        _arguments \
+                            '1:XXX:' \
+                            '-f[filename]:file:_files -g "*.json"'
+                        ;;
+                    ("update")
+                        _arguments \
+                            '2:brand:_values "brand" $vm_brands' \
+                            '-f[filename]:file:_files -g "*.json"'
+                        ;;
+                esac
+            fi
+            ;;
+        (*)
+            _message "unknown vmadm subcommand: $service"
+            ;;
+    esac
+}
+
+_vmadm "$@"
