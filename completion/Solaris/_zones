@@ -5,7 +5,7 @@ local zonelist
 
 if [ -x "$(which vmadm)" ]
 then
-    zonelist=($(vmadm list -p -o uuid,alias type=OS state=running))
+    zonelist=($(vmadm list -p -o uuid,alias type="~OS|LX" state=running))
     _describe 'zonename' zonelist
 else
     zparseopts -D -E -a type t+:
